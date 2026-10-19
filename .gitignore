@@ -1,0 +1,19 @@
+# 环境
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# 模型权重（首次运行自动下载）
+models/
+
+# 输出与临时文件
+output/
+.tmp/
+
+# 本地记录
+.workbuddy/
+
+# 编辑器
+.vscode/
+.idea/
