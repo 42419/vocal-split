@@ -25,7 +25,7 @@ python -m venv .venv
 
 # Windows / Linux with CUDA 12.8 — install the torch stack first, pinned
 .venv\Scripts\pip install torch==2.11.0+cu128 torchaudio==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128
-.venv\Scripts\pip install "audio-separator[gpu]"
+.venv\Scripts\pip install "audio-separator[gpu]" audioread
 
 # verify CUDA is visible before going further
 .venv\Scripts\python -c "import torch; print(torch.cuda.is_available())"
@@ -42,6 +42,23 @@ suffix on macOS (CPU only).
 > in the same step prevents it.
 
 Model weights (~1.7 GB) are downloaded automatically on first run into `models/`.
+
+> **Two known pitfalls**
+>
+> 1. `audio-separator 0.47.1` imports `audioread` without declaring it, and librosa 1.0
+>    no longer pulls it in. Without it the import fails with
+>    `ModuleNotFoundError: No module named 'audioread'` — hence the explicit
+>    `audioread` in the install command above.
+> 2. The first run fetches a checksum list from `raw.githubusercontent.com`. Behind
+>    the GFW this fails with `SSL: UNEXPECTED_EOF`. Set a proxy first:
+>
+>    ```bash
+>    export HTTPS_PROXY=http://127.0.0.1:PORT HTTP_PROXY=http://127.0.0.1:PORT
+>    export https_proxy=http://127.0.0.1:PORT http_proxy=http://127.0.0.1:PORT
+>    ```
+>
+>    On Linux set the lowercase variants too — they take precedence over the
+>    uppercase ones.
 
 ## Usage
 

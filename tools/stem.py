@@ -52,8 +52,17 @@ def main() -> int:
 
     try:
         from audio_separator.separator import Separator
-    except ImportError:
-        print('[stem] missing dependency. Run: pip install "audio-separator[gpu]"')
+    except ModuleNotFoundError as exc:
+        pkg = (exc.name or "").split(".")[0]
+        if pkg == "audio_separator":
+            print("[stem] audio-separator is not installed.")
+            print('        pip install "audio-separator[gpu]"')
+        else:
+            print(f"[stem] audio-separator imports '{pkg}', which is missing.")
+            print(f"        pip install {pkg}")
+        return 2
+    except Exception as exc:  # noqa: BLE001
+        print(f"[stem] cannot import audio-separator: {type(exc).__name__}: {exc}")
         return 2
 
     files = collect(src)

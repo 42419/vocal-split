@@ -11,3 +11,6 @@ torch==2.11.0+cu128
 torchaudio==2.11.0+cu128
 torchvision==0.26.0+cu128
 audio-separator[gpu]
+# audio-separator imports audioread but does not declare it, and librosa 1.0
+# dropped it from its own deps. Without this the import fails outright.
+audioread

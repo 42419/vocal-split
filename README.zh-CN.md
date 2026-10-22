@@ -23,7 +23,7 @@ python -m venv .venv
 
 # Windows / Linux（CUDA 12.8）—— 先装 pytorch 三件套，版本必须钉住
 .venv\Scripts\pip install torch==2.11.0+cu128 torchaudio==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128
-.venv\Scripts\pip install "audio-separator[gpu]"
+.venv\Scripts\pip install "audio-separator[gpu]" audioread
 
 # 装完先确认显卡可见，再继续
 .venv\Scripts\python -c "import torch; print(torch.cuda.is_available())"
@@ -37,6 +37,18 @@ Linux / macOS 把 `.venv\Scripts\` 换成 `.venv/bin/`；macOS 去掉 `+cu128` �
 > 结果 `torch.cuda.is_available()` 变成 `False`。同一步里把匹配的 torchvision 装好即可避免。
 
 首次运行时模型权重（约 1.7GB）会自动下载到 `models/`。
+
+> **两个已知坑**
+>
+> 1. `audio-separator 0.47.1` 代码里 `import audioread`，但没写进依赖声明；librosa 1.0
+>    又移除了这个依赖，所以必须手动装 `audioread`，否则 import 阶段就报
+>    `ModuleNotFoundError: No module named 'audioread'`。
+> 2. 首次运行要访问 `raw.githubusercontent.com` 拉模型校验清单。国内直连通常会
+>    `SSL: UNEXPECTED_EOF`，先设代理再跑：
+>
+>    ```powershell
+>    $env:HTTPS_PROXY="http://127.0.0.1:你的端口"
+>    ```
 
 ## 用法
 
