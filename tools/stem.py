@@ -4,17 +4,23 @@
 Usage:
     python tools/stem.py song.flac
     python tools/stem.py music/ -o output/stems
+    python tools/stem.py clip.mp4
     python tools/stem.py song.wav --model melband_roformer_instvox_duality_v2.ckpt
 
 Output:
     <output>/<name>_vocals.wav
     <output>/<name>_instrumental.wav
+
+Every input is decoded to a temporary 44.1 kHz stereo WAV with ffmpeg before it
+reaches the separator. The separator itself reads files through libsndfile,
+which cannot open video containers or some compressed formats.
 """
 
 from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -33,9 +39,21 @@ def collect(target: Path) -> list[Path]:
     return sorted(p for p in target.rglob("*") if p.suffix.lower() in AUDIO_EXT)
 
 
+def decode(src: Path, dst: Path) -> None:
+    """Transcode any input to a plain 44.1 kHz stereo WAV."""
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(src), "-vn", "-ar", "44100", "-ac", "2",
+        "-c:a", "pcm_s16le", str(dst),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip().splitlines()[-1] or "ffmpeg failed")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Split audio into vocals and instrumental.")
-    ap.add_argument("input", help="audio file or directory")
+    ap.add_argument("input", help="audio or video file, or a directory")
     ap.add_argument("-o", "--output", default="output/stems", help="output directory")
     ap.add_argument(
         "--model",
@@ -49,6 +67,10 @@ def main() -> int:
     if not src.exists():
         print(f"[stem] not found: {src}")
         return 1
+
+    if shutil.which("ffmpeg") is None:
+        print("[stem] ffmpeg not found on PATH; it is required to decode inputs")
+        return 2
 
     try:
         from audio_separator.separator import Separator
@@ -75,6 +97,8 @@ def main() -> int:
         out = ROOT / out
     out.mkdir(parents=True, exist_ok=True)
     TEMP.mkdir(parents=True, exist_ok=True)
+    decode_dir = TEMP / "decoded"
+    decode_dir.mkdir(parents=True, exist_ok=True)
 
     todo = [f for f in files if args.force or not (out / f"{f.stem}_vocals.wav").exists()]
     if not todo:
@@ -91,8 +115,10 @@ def main() -> int:
 
     ok = fail = 0
     for i, f in enumerate(todo, 1):
+        decoded = decode_dir / f"{i}.wav"
         try:
-            produced = sep.separate(str(f))
+            decode(f, decoded)
+            produced = sep.separate(str(decoded))
             paths = [
                 Path(p) if Path(p).is_absolute() else TEMP / Path(p).name
                 for p in produced
@@ -109,6 +135,8 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             fail += 1
             print(f"  [{i}/{len(todo)}] failed {f.name}: {exc}")
+        finally:
+            decoded.unlink(missing_ok=True)
 
     shutil.rmtree(TEMP, ignore_errors=True)
     print(f"\n[stem] done: {ok} ok, {fail} failed -> {out}")

@@ -13,7 +13,8 @@ artifacts around cymbals.
 
 - **Python 3.12** (recommended). 3.10–3.13 work; **3.14 does not** — `diffq-fixed`
   ships wheels only up to cp313, so pip falls back to a source build that needs MSVC.
-- ffmpeg on `PATH` (needed for non-WAV inputs and video files)
+- ffmpeg on `PATH` — required. Every input is decoded to WAV through ffmpeg before
+  separation, because the separator itself can only read formats libsndfile knows
 - GPU optional — CUDA is used when available, CPU works too but is roughly 10× slower
 
 ## Install
@@ -90,7 +91,8 @@ output/stems/<name>_instrumental.wav
 ```
 
 Supported input: `wav` `flac` `mp3` `m4a` `aac` `ogg` `opus` `wma`, plus video
-files such as `mp4` and `mkv` (via ffmpeg).
+files such as `mp4` and `mkv`. Video is handled by decoding the audio track with
+ffmpeg first — the separator never sees the container.
 
 ## Options
 
@@ -114,6 +116,10 @@ Roughly 2.5× realtime.
 
 ## Limitations
 
+- `onnxruntime-gpu` may log `Failed to load cudart64_13.dll` / `cublasLt64_13.dll` at
+  startup when it was built against CUDA 13 while torch ships CUDA 12. Harmless for
+  the default model, which runs purely on torch — it only matters if you point
+  `--model` at an ONNX file.
 - Live recordings with heavy reverb: passages where the vocal is very quiet can
   be gated to silence by the separator. On one concert recording, 13% of the
   runtime had a vocal stem below -45 dB.

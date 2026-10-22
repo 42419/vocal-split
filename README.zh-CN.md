@@ -85,7 +85,8 @@ output/stems/<文件名>_instrumental.wav  # 伴奏
 ```
 
 支持的输入格式：`wav` `flac` `mp3` `m4a` `aac` `ogg` `opus` `wma`，
-以及 `mp4`、`mkv` 这类带音轨的视频文件（依赖 ffmpeg）。
+以及 `mp4`、`mkv` 这类带音轨的视频文件。所有输入都会先用 ffmpeg 解码成 WAV
+再交给分离器——分离器本身只认 libsndfile 支持的格式，读不了视频容器。
 
 ## 参数
 
@@ -109,6 +110,9 @@ RTX 4050 Laptop，显存占用约 2GB：
 
 ## 已知限制
 
+- 启动时可能打印 `Failed to load cudart64_13.dll` / `cublasLt64_13.dll`：这是
+  `onnxruntime-gpu` 按 CUDA 13 编译、而 torch 带的是 CUDA 12 导致的。默认模型
+  纯走 torch，不影响使用；只有你把 `--model` 换成 ONNX 模型时才需要处理
 - 混响极重的现场录音：人声很弱的段落会被分离器切成静音。实测某演唱会版有 13%
   的时长里人声轨低于 -45dB
 - 输出为立体声 44.1kHz。需要单声道请自行后处理：`ffmpeg -ac 1`
