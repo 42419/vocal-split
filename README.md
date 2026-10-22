@@ -11,7 +11,8 @@ artifacts around cymbals.
 
 ## Requirements
 
-- Python 3.10+
+- **Python 3.12** (recommended). 3.10–3.13 work; **3.14 does not** — `diffq-fixed`
+  ships wheels only up to cp313, so pip falls back to a source build that needs MSVC.
 - ffmpeg on `PATH` (needed for non-WAV inputs and video files)
 - GPU optional — CUDA is used when available, CPU works too but is roughly 10× slower
 
@@ -22,14 +23,23 @@ git clone https://github.com/42419/vocal-split.git
 cd vocal-split
 python -m venv .venv
 
-# Windows
-.venv\Scripts\pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Windows / Linux with CUDA 12.8 — install the torch stack first, pinned
+.venv\Scripts\pip install torch==2.11.0+cu128 torchaudio==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128
 .venv\Scripts\pip install "audio-separator[gpu]"
 
-# Linux / macOS
-.venv/bin/pip install torch torchaudio
-.venv/bin/pip install "audio-separator[gpu]"
+# verify CUDA is visible before going further
+.venv\Scripts\python -c "import torch; print(torch.cuda.is_available())"
 ```
+
+On Linux / macOS replace `.venv\Scripts\` with `.venv/bin/` and drop the `+cu128`
+suffix on macOS (CPU only).
+
+> **Keep the version pins.** `audio-separator` pulls `onnx2torch-py313`, which
+> requires `torchvision`. If torchvision is not installed yet, pip fetches the
+> latest one from PyPI — and that release pins a newer torch, so pip silently
+> **uninstalls your CUDA build and installs the CPU wheel**, leaving
+> `torch.cuda.is_available()` at `False`. Installing the matching torchvision
+> in the same step prevents it.
 
 Model weights (~1.7 GB) are downloaded automatically on first run into `models/`.
 

@@ -1,4 +1,13 @@
+# Python 3.10-3.13, 3.12 recommended.
+# 3.14 is not supported yet: diffq-fixed has no cp314 wheels and falls back to
+# a source build that requires MSVC.
+#
+# Keep the torch stack pinned and installed together with the audio-separator
+# deps. audio-separator pulls onnx2torch -> torchvision; if torchvision is not
+# pinned, pip installs the latest one, which pins a newer torch and silently
+# replaces the CUDA build with the CPU wheel from PyPI.
 --extra-index-url https://download.pytorch.org/whl/cu128
-torch
-torchaudio
+torch==2.11.0+cu128
+torchaudio==2.11.0+cu128
+torchvision==0.26.0+cu128
 audio-separator[gpu]

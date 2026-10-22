@@ -9,7 +9,8 @@
 
 ## 环境要求
 
-- Python 3.10+
+- **Python 3.12**（推荐）。3.10–3.13 可用；**3.14 不行** —— `diffq-fixed` 只发到 cp313
+  的轮子，pip 会退回源码编译，需要 MSVC，基本必失败
 - ffmpeg 在 `PATH` 中（处理非 WAV 输入和视频文件时用到）
 - 显卡可选。有 CUDA 时自动走显卡，没有也能跑，速度慢约 10 倍
 
@@ -20,14 +21,20 @@ git clone https://github.com/42419/vocal-split.git
 cd vocal-split
 python -m venv .venv
 
-# Windows
-.venv\Scripts\pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Windows / Linux（CUDA 12.8）—— 先装 pytorch 三件套，版本必须钉住
+.venv\Scripts\pip install torch==2.11.0+cu128 torchaudio==2.11.0+cu128 torchvision==0.26.0+cu128 --index-url https://download.pytorch.org/whl/cu128
 .venv\Scripts\pip install "audio-separator[gpu]"
 
-# Linux / macOS
-.venv/bin/pip install torch torchaudio
-.venv/bin/pip install "audio-separator[gpu]"
+# 装完先确认显卡可见，再继续
+.venv\Scripts\python -c "import torch; print(torch.cuda.is_available())"
 ```
+
+Linux / macOS 把 `.venv\Scripts\` 换成 `.venv/bin/`；macOS 去掉 `+cu128` 后缀（只有 CPU 版）。
+
+> **版本不要放开。** `audio-separator` 会拉 `onnx2torch-py313`，它依赖 `torchvision`。
+> 如果环境里还没有 torchvision，pip 会从 PyPI 装最新版，而这个版本绑定了更新的 torch，
+> 于是 pip 会**把你刚装好的 CUDA 版 torch 卸载掉，换成 PyPI 上的 CPU 版**，
+> 结果 `torch.cuda.is_available()` 变成 `False`。同一步里把匹配的 torchvision 装好即可避免。
 
 首次运行时模型权重（约 1.7GB）会自动下载到 `models/`。
 
