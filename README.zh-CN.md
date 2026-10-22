@@ -36,7 +36,16 @@ Linux / macOS 把 `.venv\Scripts\` 换成 `.venv/bin/`；macOS 去掉 `+cu128` �
 > 于是 pip 会**把你刚装好的 CUDA 版 torch 卸载掉，换成 PyPI 上的 CPU 版**，
 > 结果 `torch.cuda.is_available()` 变成 `False`。同一步里把匹配的 torchvision 装好即可避免。
 
-首次运行时模型权重（约 1.7GB）会自动下载到 `models/`。
+## 模型下载
+
+首次运行会自动下载默认模型，不需要手动操作：
+
+| 文件 | 大小 | 位置 |
+|---|---|---|
+| `melband_roformer_instvox_duality_v2.ckpt` | 约 1.7 GB | `models/` |
+
+同时会拉一个小的校验清单。下载完成后即可离线使用；`models/` 已在 git 忽略列表中，
+`git pull` 不会覆盖它，但重新 clone 需要重新下载。
 
 > **两个已知坑**
 >
@@ -48,7 +57,12 @@ Linux / macOS 把 `.venv\Scripts\` 换成 `.venv/bin/`；macOS 去掉 `+cu128` �
 >
 >    ```powershell
 >    $env:HTTPS_PROXY="http://127.0.0.1:你的端口"
+>    $env:HTTP_PROXY="http://127.0.0.1:你的端口"
+>    $env:https_proxy="http://127.0.0.1:你的端口"
+>    $env:http_proxy="http://127.0.0.1:你的端口"
 >    ```
+>
+>    requests 优先读小写变量，只设大写可能不生效。
 
 ## 用法
 

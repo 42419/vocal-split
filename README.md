@@ -41,7 +41,16 @@ suffix on macOS (CPU only).
 > `torch.cuda.is_available()` at `False`. Installing the matching torchvision
 > in the same step prevents it.
 
-Model weights (~1.7 GB) are downloaded automatically on first run into `models/`.
+## Model download
+
+First run downloads the default model automatically — no manual step:
+
+| File | Size | Location |
+|---|---|---|
+| `melband_roformer_instvox_duality_v2.ckpt` | ~1.7 GB | `models/` |
+
+A small checksum manifest is fetched at the same time. After that the tool works
+offline; `models/` is git-ignored, so it survives `git pull` but not a fresh clone.
 
 > **Two known pitfalls**
 >
