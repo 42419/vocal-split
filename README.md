@@ -72,6 +72,11 @@ offline; `models/` is git-ignored, so it survives `git pull` but not a fresh clo
 
 ## Usage
 
+> `python` below means the project virtualenv. If you have not activated it, use
+> `.venv\Scripts\python` on Windows or `.venv/bin/python` on Linux/macOS —
+> otherwise you get `audio-separator is not installed`, because the system Python
+> knows nothing about this venv.
+
 ```bash
 # single file
 python tools/stem.py "music/song.flac"
@@ -93,6 +98,48 @@ output/stems/<name>_instrumental.wav
 Supported input: `wav` `flac` `mp3` `m4a` `aac` `ogg` `opus` `wma`, plus video
 files such as `mp4` and `mkv`. Video is handled by decoding the audio track with
 ffmpeg first — the separator never sees the container.
+
+## Removing vocals that sit inside the backing track
+
+The default model answers one question: *singing or not*. Anything that sings in
+the backing track — harmonies, backing vocals, vocal chops, a sampled hook — is
+therefore grouped into the vocal stem together with the lead.
+
+To pull those out, run a second pass with a karaoke model:
+
+```bash
+# 1. vocals / instrumental
+python tools/stem.py "song.mp3" -o out
+
+# 2. split the lead from everything else that sings
+python tools/stem.py "out/song_vocals.wav" \
+    --model mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
+    -o out/lead
+```
+
+The second pass produces:
+
+| File | Content |
+|---|---|
+| `out/lead/song_vocals_vocals.wav` | lead vocal |
+| `out/lead/song_vocals_instrumental.wav` | the backing vocals that were removed |
+
+Karaoke models that work:
+
+| Model | Notes |
+|---|---|
+| `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | best quality |
+| `mel_band_roformer_karaoke_gabox.ckpt` | similar, slightly different balance |
+| `5_HP-Karaoke-UVR.pth` / `6_HP-Karaoke-UVR.pth` | smaller, one step down |
+
+The model is downloaded on first use, like the default one.
+
+Limits worth knowing:
+
+- Works when the backing vocal is clearly a separate part (harmony, ad-libs).
+- Struggles when both sing in unison at the same pitch — expect bleed in both directions.
+- If the "backing vocal" is really a sampled hook from another track, the model may
+  keep it as lead, because it sounds like ordinary singing.
 
 ## Options
 

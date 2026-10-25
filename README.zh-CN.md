@@ -66,6 +66,10 @@ Linux / macOS 把 `.venv\Scripts\` 换成 `.venv/bin/`；macOS 去掉 `+cu128` �
 
 ## 用法
 
+> 下面的 `python` 指项目虚拟环境里的解释器。如果还没激活 venv，请用
+> `.venv\Scripts\python`（Windows）或 `.venv/bin/python`（Linux/macOS），
+> 否则会报 `audio-separator is not installed` —— 系统 Python 不认识这个 venv。
+
 ```bash
 # 单个文件
 python tools/stem.py "music/song.flac"
@@ -87,6 +91,46 @@ output/stems/<文件名>_instrumental.wav  # 伴奏
 支持的输入格式：`wav` `flac` `mp3` `m4a` `aac` `ogg` `opus` `wma`，
 以及 `mp4`、`mkv` 这类带音轨的视频文件。所有输入都会先用 ffmpeg 解码成 WAV
 再交给分离器——分离器本身只认 libsndfile 支持的格式，读不了视频容器。
+
+## 去除 BGM 里的人声
+
+默认模型只回答一个问题：**这段是不是人声**。所以 BGM 里的和声、伴唱、vocal chop、
+采样 hook 都会被一起归到人声轨里。
+
+想把它们剥掉，用 Karaoke 模型再跑一遍：
+
+```bash
+# 第一遍：人声 / 伴奏
+python tools/stem.py "song.mp3" -o out
+
+# 第二遍：把主唱从其他人声里分出来
+python tools/stem.py "out/song_vocals.wav" \
+    --model mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
+    -o out/lead
+```
+
+第二遍的产物：
+
+| 文件 | 内容 |
+|---|---|
+| `out/lead/song_vocals_vocals.wav` | 主唱 |
+| `out/lead/song_vocals_instrumental.wav` | 被剥下来的 BGM 人声 |
+
+实测可用的 Karaoke 模型：
+
+| 模型 | 说明 |
+|---|---|
+| `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | 质量最好 |
+| `mel_band_roformer_karaoke_gabox.ckpt` | 相近，音色平衡略有差异 |
+| `5_HP-Karaoke-UVR.pth` / `6_HP-Karaoke-UVR.pth` | 体积小，质量次一档 |
+
+首次使用时会自动下载对应模型。
+
+几个限制：
+
+- 伴唱和主唱是**不同声部**（和声、ad-lib）时效果好
+- 两者**同度齐唱**时很难分开，两边都会有残留
+- 如果 BGM 里那段其实是**另一首歌的采样 hook**，模型可能把它当主唱留下来，因为听起来就是正常演唱
 
 ## 参数
 
