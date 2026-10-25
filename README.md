@@ -99,13 +99,35 @@ Supported input: `wav` `flac` `mp3` `m4a` `aac` `ogg` `opus` `wma`, plus video
 files such as `mp4` and `mkv`. Video is handled by decoding the audio track with
 ffmpeg first — the separator never sees the container.
 
+With `--two-pass` a third file appears next to them, `<name>_backing.wav` — see
+[Removing vocals that sit inside the backing track](#removing-vocals-that-sit-inside-the-backing-track).
+
 ## Removing vocals that sit inside the backing track
 
 The default model answers one question: *singing or not*. Anything that sings in
 the backing track — harmonies, backing vocals, vocal chops, a sampled hook — is
 therefore grouped into the vocal stem together with the lead.
 
-To pull those out, run a second pass with a karaoke model:
+`--two-pass` does it in one command — the first pass splits vocals from the mix,
+the second runs a karaoke model on that vocal stem:
+
+```bash
+python tools/stem.py "songs/" -o output/lead --two-pass
+```
+
+Every input produces three files:
+
+| File | Content |
+|---|---|
+| `output/lead/<name>_vocals.wav` | clean lead |
+| `output/lead/<name>_instrumental.wav` | accompaniment |
+| `output/lead/<name>_backing.wav` | backing vocals that were pulled out |
+
+Both models stay loaded while the batch runs — roughly 3 GB of VRAM — and the
+whole job takes about twice as long as a single pass. Swap in a different
+karaoke model with `--karaoke-model`.
+
+If you would rather keep the intermediate stems, run the two passes by hand:
 
 ```bash
 # 1. vocals / instrumental -> output/stems/
@@ -116,13 +138,6 @@ python tools/stem.py "output/stems/song_vocals.wav" \
     --model mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
     -o output/lead
 ```
-
-The second pass produces:
-
-| File | Content |
-|---|---|
-| `output/lead/song_vocals_vocals.wav` | lead vocal |
-| `output/lead/song_vocals_instrumental.wav` | the backing vocals that were removed |
 
 Karaoke models that work:
 
@@ -146,6 +161,8 @@ Limits worth knowing:
 | Flag | Default | Description |
 |---|---|---|
 | `-o, --output` | `output/stems` | Output directory |
+| `--two-pass` | off | Also run a karaoke model on the vocal stem — see above |
+| `--karaoke-model` | `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | Model used by `--two-pass` |
 | `--model` | `melband_roformer_instvox_duality_v2.ckpt` | Any model supported by audio-separator |
 | `--force` | off | Overwrite existing output |
 

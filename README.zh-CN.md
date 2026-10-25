@@ -92,12 +92,32 @@ output/stems/<文件名>_instrumental.wav  # 伴奏
 以及 `mp4`、`mkv` 这类带音轨的视频文件。所有输入都会先用 ffmpeg 解码成 WAV
 再交给分离器——分离器本身只认 libsndfile 支持的格式，读不了视频容器。
 
+加 `--two-pass` 时会多出一个 `<文件名>_backing.wav`，见下方
+[去除 BGM 里的人声](#去除-bgm-里的人声)。
+
 ## 去除 BGM 里的人声
 
 默认模型只回答一个问题：**这段是不是人声**。所以 BGM 里的和声、伴唱、vocal chop、
 采样 hook 都会被一起归到人声轨里。
 
-想把它们剥掉，用 Karaoke 模型再跑一遍：
+`--two-pass` 一条命令搞定——第一遍分人声/伴奏，第二遍拿 Karaoke 模型再拆人声轨：
+
+```bash
+python tools/stem.py "songs/" -o output/lead --two-pass
+```
+
+每个输入产出三个文件：
+
+| 文件 | 内容 |
+|---|---|
+| `output/lead/<文件名>_vocals.wav` | 干净主唱 |
+| `output/lead/<文件名>_instrumental.wav` | 伴奏 |
+| `output/lead/<文件名>_backing.wav` | 被剥出来的 BGM 人声 |
+
+批处理期间两个模型同时驻留，显存约 3GB；总耗时约为单遍的两倍。用
+`--karaoke-model` 可以换别的 Karaoke 模型。
+
+想保留中间产物的话，也可以手动跑两遍：
 
 ```bash
 # 第一遍：人声 / 伴奏 → output/stems/
@@ -108,13 +128,6 @@ python tools/stem.py "output/stems/song_vocals.wav" \
     --model mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
     -o output/lead
 ```
-
-第二遍的产物：
-
-| 文件 | 内容 |
-|---|---|
-| `output/lead/song_vocals_vocals.wav` | 主唱 |
-| `output/lead/song_vocals_instrumental.wav` | 被剥下来的 BGM 人声 |
 
 实测可用的 Karaoke 模型：
 
@@ -137,6 +150,8 @@ python tools/stem.py "output/stems/song_vocals.wav" \
 | 参数 | 默认值 | 说明 |
 |---|---|---|
 | `-o, --output` | `output/stems` | 输出目录 |
+| `--two-pass` | 关 | 对人声轨再跑一遍 Karaoke 模型，见上文 |
+| `--karaoke-model` | `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | `--two-pass` 使用的模型 |
 | `--model` | `melband_roformer_instvox_duality_v2.ckpt` | 可换用 audio-separator 支持的其他模型 |
 | `--force` | 关 | 覆盖已有结果 |
 

@@ -5,11 +5,17 @@ Usage:
     python tools/stem.py song.flac
     python tools/stem.py music/ -o output/stems
     python tools/stem.py clip.mp4
-    python tools/stem.py song.wav --model melband_roformer_instvox_duality_v2.ckpt
+    python tools/stem.py clips/ -o output/songs --two-pass
 
-Output:
+Output (default):
     <output>/<name>_vocals.wav
     <output>/<name>_instrumental.wav
+
+Output (--two-pass, a second karaoke model also strips vocals that sit in the
+backing track):
+    <output>/<name>_vocals.wav       clean lead
+    <output>/<name>_instrumental.wav accompaniment
+    <output>/<name>_backing.wav      backing vocals pulled out of the mix
 
 Every input is decoded to a temporary 44.1 kHz stereo WAV with ffmpeg before it
 reaches the separator. The separator itself reads files through libsndfile,
@@ -27,6 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
 TEMP = ROOT / ".tmp" / "stem_tmp"
+KARAOKE_MODEL = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt"
 AUDIO_EXT = {
     ".wav", ".flac", ".mp3", ".m4a", ".aac",
     ".ogg", ".opus", ".wma", ".mp4", ".mkv",
@@ -51,6 +58,38 @@ def decode(src: Path, dst: Path) -> None:
         raise RuntimeError(proc.stderr.strip().splitlines()[-1] or "ffmpeg failed")
 
 
+def split(sep, src: Path, work_wav: Path, dst_vocals: Path, dst_inst: Path) -> None:
+    """Run one separation pass and place the two stems at the given paths."""
+    decode(src, work_wav)
+    try:
+        produced = sep.separate(str(work_wav))
+        paths = [
+            Path(p) if Path(p).is_absolute() else TEMP / Path(p).name
+            for p in produced
+        ]
+        vocal = next((p for p in paths if "(vocals)" in p.name.lower()), None)
+        inst = next((p for p in paths if "(instrumental)" in p.name.lower()), None)
+        if vocal is None:
+            raise RuntimeError("no vocal stem in separator output")
+        shutil.move(str(vocal), str(dst_vocals))
+        if inst is not None:
+            shutil.move(str(inst), str(dst_inst))
+    finally:
+        work_wav.unlink(missing_ok=True)
+
+
+def load(model: str):
+    from audio_separator.separator import Separator
+
+    sep = Separator(
+        model_file_dir=str(MODELS),
+        output_dir=str(TEMP),
+        output_format="WAV",
+    )
+    sep.load_model(model_filename=model)
+    return sep
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Split audio into vocals and instrumental.")
     ap.add_argument("input", help="audio or video file, or a directory")
@@ -59,6 +98,16 @@ def main() -> int:
         "--model",
         default="melband_roformer_instvox_duality_v2.ckpt",
         help="any model supported by audio-separator",
+    )
+    ap.add_argument(
+        "--two-pass",
+        action="store_true",
+        help="run a second, karaoke model to remove vocals inside the backing track",
+    )
+    ap.add_argument(
+        "--karaoke-model",
+        default=KARAOKE_MODEL,
+        help="model used by --two-pass",
     )
     ap.add_argument("--force", action="store_true", help="overwrite existing output")
     args = ap.parse_args()
@@ -73,12 +122,12 @@ def main() -> int:
         return 2
 
     try:
-        from audio_separator.separator import Separator
+        import audio_separator  # noqa: F401
     except ModuleNotFoundError as exc:
         pkg = (exc.name or "").split(".")[0]
         if pkg == "audio_separator":
             print("[stem] audio-separator is not installed.")
-            print('        pip install "audio-separator[gpu]"')
+            print('        pip install "audio-separator[gpu]" audioread')
         else:
             print(f"[stem] audio-separator imports '{pkg}', which is missing.")
             print(f"        pip install {pkg}")
@@ -97,46 +146,63 @@ def main() -> int:
         out = ROOT / out
     out.mkdir(parents=True, exist_ok=True)
     TEMP.mkdir(parents=True, exist_ok=True)
-    decode_dir = TEMP / "decoded"
-    decode_dir.mkdir(parents=True, exist_ok=True)
 
     todo = [f for f in files if args.force or not (out / f"{f.stem}_vocals.wav").exists()]
     if not todo:
         print("[stem] everything already exists, nothing to do (use --force to redo)")
         return 0
 
-    print(f"[stem] {len(todo)} file(s) queued | model: {args.model}")
-    sep = Separator(
-        model_file_dir=str(MODELS),
-        output_dir=str(TEMP),
-        output_format="WAV",
-    )
-    sep.load_model(model_filename=args.model)
+    mode = "two-pass" if args.two_pass else "single-pass"
+    print(f"[stem] {len(todo)} file(s) queued | {mode} | {args.output}")
+
+    try:
+        sep = load(args.model)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[stem] cannot load model {args.model}: {type(exc).__name__}: {exc}")
+        return 2
+
+    sep_karaoke = None
+    if args.two_pass:
+        try:
+            sep_karaoke = load(args.karaoke_model)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[stem] cannot load karaoke model: {type(exc).__name__}: {exc}")
+            return 2
+        print(f"         karaoke: {args.karaoke_model}")
 
     ok = fail = 0
     for i, f in enumerate(todo, 1):
-        decoded = decode_dir / f"{i}.wav"
+        stage = TEMP / f"{i}"
+        stage.mkdir(parents=True, exist_ok=True)
         try:
-            decode(f, decoded)
-            produced = sep.separate(str(decoded))
-            paths = [
-                Path(p) if Path(p).is_absolute() else TEMP / Path(p).name
-                for p in produced
-            ]
-            vocal = next((p for p in paths if "(vocals)" in p.name.lower()), None)
-            inst = next((p for p in paths if "(instrumental)" in p.name.lower()), None)
-            if vocal is None:
-                raise RuntimeError("no vocal stem in separator output")
-            shutil.move(str(vocal), str(out / f"{f.stem}_vocals.wav"))
-            if inst is not None:
-                shutil.move(str(inst), str(out / f"{f.stem}_instrumental.wav"))
+            first_vocals = stage / "vocals.wav"
+            split(sep, f, stage / "decoded.wav", first_vocals, stage / "instrumental.wav")
+
+            if args.two_pass:
+                split(
+                    sep_karaoke,
+                    first_vocals,
+                    stage / "decoded2.wav",
+                    stage / "lead.wav",
+                    stage / "backing.wav",
+                )
+                shutil.move(str(stage / "lead.wav"), str(out / f"{f.stem}_vocals.wav"))
+                shutil.move(str(stage / "backing.wav"), str(out / f"{f.stem}_backing.wav"))
+                shutil.move(
+                    str(stage / "instrumental.wav"), str(out / f"{f.stem}_instrumental.wav")
+                )
+            else:
+                shutil.move(str(first_vocals), str(out / f"{f.stem}_vocals.wav"))
+                shutil.move(
+                    str(stage / "instrumental.wav"), str(out / f"{f.stem}_instrumental.wav")
+                )
             ok += 1
             print(f"  [{i}/{len(todo)}] {f.name}")
         except Exception as exc:  # noqa: BLE001
             fail += 1
             print(f"  [{i}/{len(todo)}] failed {f.name}: {exc}")
         finally:
-            decoded.unlink(missing_ok=True)
+            shutil.rmtree(stage, ignore_errors=True)
 
     shutil.rmtree(TEMP, ignore_errors=True)
     print(f"\n[stem] done: {ok} ok, {fail} failed -> {out}")
