@@ -100,29 +100,29 @@ output/stems/<文件名>_instrumental.wav  # 伴奏
 想把它们剥掉，用 Karaoke 模型再跑一遍：
 
 ```bash
-# 第一遍：人声 / 伴奏
-python tools/stem.py "song.mp3" -o out
+# 第一遍：人声 / 伴奏 → output/stems/
+python tools/stem.py "song.mp3"
 
-# 第二遍：把主唱从其他人声里分出来
-python tools/stem.py "out/song_vocals.wav" \
+# 第二遍：主唱从其他人声里分出来 → output/lead/
+python tools/stem.py "output/stems/song_vocals.wav" \
     --model mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
-    -o out/lead
+    -o output/lead
 ```
 
 第二遍的产物：
 
 | 文件 | 内容 |
 |---|---|
-| `out/lead/song_vocals_vocals.wav` | 主唱 |
-| `out/lead/song_vocals_instrumental.wav` | 被剥下来的 BGM 人声 |
+| `output/lead/song_vocals_vocals.wav` | 主唱 |
+| `output/lead/song_vocals_instrumental.wav` | 被剥下来的 BGM 人声 |
 
 实测可用的 Karaoke 模型：
 
-| 模型 | 说明 |
-|---|---|
-| `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | 质量最好 |
-| `mel_band_roformer_karaoke_gabox.ckpt` | 相近，音色平衡略有差异 |
-| `5_HP-Karaoke-UVR.pth` / `6_HP-Karaoke-UVR.pth` | 体积小，质量次一档 |
+| 模型 | 体积 | 说明 |
+|---|---|---|
+| `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | 913 MB | 质量最好 |
+| `5_HP-Karaoke-UVR.pth` | 127 MB | 体积小，质量次一档 |
+| `6_HP-Karaoke-UVR.pth` | 127 MB | 体积相同，训练集不同 |
 
 首次使用时会自动下载对应模型。
 

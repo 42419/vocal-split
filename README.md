@@ -108,29 +108,29 @@ therefore grouped into the vocal stem together with the lead.
 To pull those out, run a second pass with a karaoke model:
 
 ```bash
-# 1. vocals / instrumental
-python tools/stem.py "song.mp3" -o out
+# 1. vocals / instrumental -> output/stems/
+python tools/stem.py "song.mp3"
 
-# 2. split the lead from everything else that sings
-python tools/stem.py "out/song_vocals.wav" \
+# 2. lead vs everything else that sings -> output/lead/
+python tools/stem.py "output/stems/song_vocals.wav" \
     --model mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
-    -o out/lead
+    -o output/lead
 ```
 
 The second pass produces:
 
 | File | Content |
 |---|---|
-| `out/lead/song_vocals_vocals.wav` | lead vocal |
-| `out/lead/song_vocals_instrumental.wav` | the backing vocals that were removed |
+| `output/lead/song_vocals_vocals.wav` | lead vocal |
+| `output/lead/song_vocals_instrumental.wav` | the backing vocals that were removed |
 
 Karaoke models that work:
 
-| Model | Notes |
-|---|---|
-| `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | best quality |
-| `mel_band_roformer_karaoke_gabox.ckpt` | similar, slightly different balance |
-| `5_HP-Karaoke-UVR.pth` / `6_HP-Karaoke-UVR.pth` | smaller, one step down |
+| Model | Size | Notes |
+|---|---|---|
+| `mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt` | 913 MB | best quality, verified |
+| `5_HP-Karaoke-UVR.pth` | 127 MB | smaller, one step down |
+| `6_HP-Karaoke-UVR.pth` | 127 MB | same size, different training set |
 
 The model is downloaded on first use, like the default one.
 
